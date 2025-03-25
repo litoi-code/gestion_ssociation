@@ -1,0 +1,39 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\MemberController;
+use App\Http\Controllers\FundController;
+use App\Http\Controllers\ContributionController;
+use App\Http\Controllers\LoanController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\PenaltyController;
+
+// Penalty payment route
+
+
+// Home Route
+Route::get('/', [HomeController::class, 'index'])->name('home');
+
+// Members Routes
+Route::resource('members', MemberController::class);
+// Route::get('/members/{member}', [MemberController::class, 'show'])->name('members.show');
+
+Route::post('/penalties/{penalty}/pay', [PenaltyController::class, 'pay'])->name('penalties.pay');
+// Funds Routes
+Route::resource('funds', FundController::class);
+
+// Contributions Routes
+Route::get('/contributions/search', [ContributionController::class, 'search'])->name('contributions.search');
+Route::resource('contributions', ContributionController::class);
+
+// Loans Routes
+Route::resource('loans', LoanController::class);
+// Loan repayment route
+Route::post('/loans/{loan}/repay', [LoanController::class, 'repay'])->name('loans.repay');
+
+use App\Http\Controllers\TransferController;
+
+// Penalties Routes
+Route::resource('penalties', PenaltyController::class);
+
+Route::resource('transfers', TransferController::class);
