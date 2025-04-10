@@ -8,14 +8,21 @@
     <div class="flex justify-between items-center mb-4">
         <div class="flex items-center space-x-4">
            <!-- Search Input -->
-            <select 
-                id="searchInput" 
+            <select
+                id="searchInput"
                 class="border p-2 w-full"
             >
-                <option value="">All Members</option>
-                @foreach($members as $member)
-                    <option value="{{ $member->name }}">{{ $member->name }}</option>
-                @endforeach
+                <option value="">All</option>
+                <optgroup label="Members">
+                    @foreach($members as $member)
+                        <option value="{{ $member->name }}">{{ $member->name }}</option>
+                    @endforeach
+                </optgroup>
+                <optgroup label="Funds">
+                    @foreach($funds as $fund)
+                        <option value="{{ $fund->name }}">{{ $fund->name }}</option>
+                    @endforeach
+                </optgroup>
             </select>
 
             <!-- Date Filter -->
@@ -23,24 +30,36 @@
                 type="date" 
                 id="dateFilter" 
                 class="border p-2 w-full"
+                value="{{ now()->format('Y-m-d') }}"
+
                 
             >
         </div>
+         <!-- Total Funds Display -->
+    {{-- <div class="bg-gray-100 p-4 rounded-lg text-center">
+        <h3 class="font-bold mb-2">Total Funds (First 4)</h3>
+        <p class="text-2xl font-bold" id="totalFirstFourFunds">0.00 Fcfa</p>
+    </div> --}}
 
         <!-- Add Contribution Button -->
         <a href="{{ route('contributions.create') }}" class="bg-blue-500 text-white px-4 py-2">Ajout Contribution</a>
     </div>
 
     <!-- Total Balance Per Fund -->
-    <h2 class="text-xl font-bold mb-4">Solde des Caisses</h2>
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold">Caisses</h2>
+        <h2 class="text-xl font-bold">Total: <span id="totalFunds">0.00</span> Fcfa</h2>
+        <h2 class="text-xl font-bold">Hôte(sse): <span id="totalFirstFourFunds">0.00</span> </h2>
+    </div>
     <div id="fundBalancesGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         @foreach ($funds as $fund)
         <div class="bg-gray-100 p-4 rounded-lg text-center">
-            <h3 class="font-bold mb-2">{{ $fund->name }} ({{ ucfirst($fund->type) }})</h3>
+            <h3 class="font-bold mb-2">{{ $fund->name }} </h3>
             <p class="text-2xl font-bold">{{ number_format($fund->balance, 2) }} Fcfa</p>
         </div>
         @endforeach
     </div>
+    
 
     <!-- Contributions Table -->
     <table id="contributionsTable" class="w-full border-collapse">
@@ -84,6 +103,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const contributionsTable = document.getElementById('contributionsTable');
     const fundBalancesGrid = document.getElementById('fundBalancesGrid');
 
+    // Trigger search on page load with the default date
+    const defaultDate = dateFilter.value.trim();
+    performSearch('', defaultDate);
+
     // Function to perform AJAX search
     function performSearch(query, date) {
         let url = `/contributions/search?query=${encodeURIComponent(query)}`;
@@ -99,7 +122,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 tbody.innerHTML = ''; // Clear existing rows
 
                 if (data.contributions.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center">No contributions found.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center">Aucune contribution enregistrée.</td></tr>';
                 } else {
                     data.contributions.forEach(contribution => {
                         const row = `
@@ -128,12 +151,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 data.fundBalances.forEach(fund => {
                     const card = `
                         <div class="bg-gray-100 p-4 rounded-lg text-center">
-                            <h3 class="font-bold mb-2">${fund.name} (${fund.type})</h3>
+                            <h3 class="font-bold mb-2">${fund.name} </h3>
                             <p class="text-2xl font-bold">${parseFloat(fund.balance).toFixed(2)} Fcfa</p>
                         </div>
                     `;
                     fundBalancesGrid.insertAdjacentHTML('beforeend', card);
                 });
+
+                // Calculate total of first four funds
+                let totalFirstFourFunds = 0;
+                for (let i = 0; i < Math.min(2, data.fundBalances.length); i++) {
+                    totalFirstFourFunds += parseFloat(data.fundBalances[i].balance);
+                }
+                document.getElementById('totalFirstFourFunds').textContent = totalFirstFourFunds.toFixed(2) + ' Fcfa';
+
+                // Update the total funds
+                document.getElementById('totalFunds').textContent = parseFloat(data.totalFunds).toFixed(2);
             })
             .catch(error => console.error('Error fetching search results:', error));
     }

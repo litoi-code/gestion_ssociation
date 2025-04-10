@@ -7,6 +7,7 @@ use App\Http\Controllers\ContributionController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PenaltyController;
+use App\Http\Controllers\InterestDistributionController;
 
 // Penalty payment route
 
@@ -37,3 +38,12 @@ use App\Http\Controllers\TransferController;
 Route::resource('penalties', PenaltyController::class);
 
 Route::resource('transfers', TransferController::class);
+
+// Interest Distribution Routes
+Route::resource('interest-distributions', InterestDistributionController::class);
+
+Route::post('/interest-distributions/calculate/{member}', [InterestDistributionController::class, 'calculateMemberShare'])
+    ->name('interest-distributions.calculate');
+
+
+

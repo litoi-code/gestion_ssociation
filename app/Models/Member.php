@@ -27,6 +27,8 @@ class Member extends Model
         return $this->hasMany(Penalty::class);
     }
 
-    
-    
+    public function interestDistributions()
+    {
+        return $this->hasMany(InterestDistribution::class);
+    }
 }

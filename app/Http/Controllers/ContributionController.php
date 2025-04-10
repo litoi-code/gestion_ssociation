@@ -19,10 +19,13 @@ class ContributionController extends Controller
         // Fetch all funds with their current balances
         $funds = Fund::all();
 
+        // Calculate total funds
+        $totalFunds = Fund::sum('balance');
+
         // Fetch all members for the filter dropdown
         $members = Member::all();
 
-        return view('contributions.index', compact('contributions', 'funds', 'members'));
+        return view('contributions.index', compact('contributions', 'funds', 'members', 'totalFunds'));
     }
 
     /**
@@ -163,14 +166,16 @@ class ContributionController extends Controller
         // Filter contributions based on the search query
         $contributions = Contribution::with(['member', 'fund'])
             ->where(function ($q) use ($query) {
-                $q->whereHas('member', function ($q) use ($query) {
-                    $q->where('name', 'like', "%{$query}%");
-                })
-                ->orWhereHas('fund', function ($q) use ($query) {
-                    $q->where('name', 'like', "%{$query}%");
-                })
-                // ->orWhere('host', 'like', "%{$query}%")
-                ;
+                if ($query != "") {
+                    $q->where(function ($sq) use ($query) {
+                        $sq->whereHas('member', function ($q) use ($query) {
+                            $q->where('name', 'like', "%{$query}%");
+                        })
+                        ->orWhereHas('fund', function ($q) use ($query) {
+                            $q->where('name', 'like', "%{$query}%");
+                        });
+                    });
+                }
             })
             ->when($date, function ($q, $date) {
                 $q->where('date', $date);
@@ -200,9 +205,13 @@ class ContributionController extends Controller
             ];
         });
 
+        // Calculate total funds from search results
+        $totalFunds = $contributions->sum('amount');
+
         return response()->json([
             'contributions' => $contributions,
             'fundBalances' => $fundBalances,
+            'totalFunds' => $totalFunds,
         ]);
     }
 }

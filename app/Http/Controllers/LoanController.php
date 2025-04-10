@@ -5,15 +5,28 @@ namespace App\Http\Controllers;
 use App\Models\Loan;
 use App\Models\Member;
 use App\Models\Fund;
+use App\Models\Repayment;  // Add this line
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Carbon\Carbon;
 
 class LoanController extends Controller
 {
     // Display all loans
     public function index()
     {
-        $loans = Loan::with(['member', 'fund'])->get();
+        $loans = Loan::with(['member', 'fund', 'repayments'])->orderBy('start_date', 'asc')->get();
+        
+        foreach ($loans as $loan) {
+            $balance = $this->calculateLoanBalance($loan);
+            
+            // Set values using the accessor methods
+            $loan->current_total = $balance['total_amount'];
+            $loan->current_interest = $balance['interest_accumulated'];
+            
+           
+        }
+        
         return view('loans.index', compact('loans'));
     }
 
@@ -39,38 +52,96 @@ class LoanController extends Controller
         // Ensure fund balance is sufficient
         $fund = Fund::find($validated['fund_id']);
         if ($validated['amount'] > $fund->balance) {
-            return redirect()->route('loans.create')->with('error', 'Requested loan amount exceeds fund balance.');
+            return redirect()->route('loans.create')
+                ->with('error', 'Requested loan amount exceeds fund balance.');
         }
 
         $amount = $validated['amount'];
-        $interestRate = $validated['interest_rate'];
-        $startDate = \Carbon\Carbon::parse($validated['start_date']);
-        $currentDate = \Carbon\Carbon::now();
-        $elapsedMonths = ($currentDate->format('Y') - $startDate->format('Y')) * 12 + ($currentDate->format('m') - $startDate->format('m'));
-        if ($elapsedMonths < 0) {
-            $elapsedMonths = 0;
-        }
-        $totalInterest = ($amount * $interestRate / 100) * $elapsedMonths;
-        if ($elapsedMonths == 0) {
-            $totalAmount = $amount;
-            $remainingBalance = $amount;
-        } else {
-            $totalAmount = $amount + $totalInterest;
-            $remainingBalance = $totalAmount;
-        }
-
-        // Create the loan
-        $loan = Loan::create(array_merge($validated, [
-            'total_amount' => $totalAmount,
-            'remaining_balance' => $remainingBalance,
+        $startDate = Carbon::parse($validated['start_date']);
+        $currentDate = Carbon::now();
+        
+        // Calculate initial loan state
+        $initialBalance = $this->calculateLoanBalance(new Loan([
+            'amount' => $amount,
+            'interest_rate' => $validated['interest_rate'],
+            'start_date' => $startDate,
+            'remaining_balance' => $amount, // Add this line
         ]));
 
-        // Update fund balance (deduct loan amount)
-        $fund = Fund::find($validated['fund_id']);
-        $fund->balance -= $validated['amount'];
+        // Create the loan
+        $loan = Loan::create([
+            'member_id' => $validated['member_id'],
+            'fund_id' => $validated['fund_id'],
+            'amount' => $amount,
+            'interest_rate' => $validated['interest_rate'],
+            'start_date' => $startDate,
+            'remaining_balance' => $amount,
+            'total_amount' => $initialBalance['total_amount'],
+        ]);
+
+        // Update fund balance
+        $fund->balance -= $amount;
         $fund->save();
 
-        return redirect()->route('loans.index')->with('success', 'Loan issued successfully.');
+        return redirect()->route('loans.index')
+            ->with('success', 'Loan issued successfully.');
+    }
+
+    // Calculate loan balance and interest
+    private function calculateLoanBalance(Loan $loan, $asOfDate = null)
+    {
+        // Ensure we're working with Carbon instances
+        $asOfDate = $asOfDate ? Carbon::parse($asOfDate) : Carbon::now();
+        $startDate = $loan->start_date instanceof Carbon ? $loan->start_date : Carbon::parse($loan->start_date);
+        
+        // If loan start date is in the future
+        if ($startDate->gt($asOfDate)) {
+            return [
+                'principal' => $loan->remaining_balance,
+                'elapsed_months' => 0,
+                'interest_accumulated' => 0,
+                'total_amount' => $loan->remaining_balance
+            ];
+        }
+
+        // Get all repayments up to the asOfDate
+        $lastRepayment = $loan->repayments()
+            ->where('date', '<=', $asOfDate->toDateString())
+            ->orderBy('date', 'desc')
+            ->first();
+
+        $calculationStartDate = $lastRepayment ? 
+            Carbon::parse($lastRepayment->date) : 
+            $startDate;
+
+        // Calculate exact months including partial months
+        $elapsedMonths = round($calculationStartDate->floatDiffInMonths($asOfDate));
+        
+        // Calculate interest based on remaining balance with proper rounding
+        $monthlyInterestRate = round((float)$loan->interest_rate / 100, 4); // Round to 4 decimal places
+        $remainingBalance = round($loan->remaining_balance, 2);
+        
+        // Calculate total interest
+        $totalInterest = round($remainingBalance * $monthlyInterestRate * $elapsedMonths, 2);
+        $totalAmount = round($remainingBalance + $totalInterest, 2);
+
+        \Log::debug('Loan balance calculation', [
+            'loan_id' => $loan->id,
+            'remaining_balance' => $remainingBalance,
+            'monthly_rate' => $monthlyInterestRate,
+            'elapsed_months' => $elapsedMonths,
+            'total_interest' => $totalInterest,
+            'total_amount' => $totalAmount,
+            'start_date' => $startDate->toDateString(),
+            'as_of_date' => $asOfDate->toDateString()
+        ]);
+
+        return [
+            'principal' => $remainingBalance,
+            'elapsed_months' => $elapsedMonths,
+            'interest_accumulated' => $totalInterest,
+            'total_amount' => $totalAmount
+        ];
     }
 
     // Repay a loan
@@ -78,51 +149,91 @@ class LoanController extends Controller
     {
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0',
+            'date' => 'required|date',
         ]);
 
         $repaymentAmount = $validated['amount'];
+        $repaymentDate = Carbon::parse($validated['date']);
 
-        // Ensure repayment amount does not exceed remaining balance
-        if ($repaymentAmount > $loan->remaining_balance) {
-            return redirect()->back()->with('error', 'Repayment amount exceeds remaining balance.');
+        // Get current loan balance
+        $currentBalance = $this->calculateLoanBalance($loan, $repaymentDate);
+
+        // Ensure repayment amount doesn't exceed current balance
+        if ($repaymentAmount > $currentBalance['total_amount']) {
+            return redirect()->back()
+                ->with('error', 'Repayment amount exceeds current balance with accumulated interest.');
         }
 
-        // Deduct repayment from remaining balance
-        $loan->remaining_balance -= $repaymentAmount;
+        // Get the date of the last repayment or loan start date if no repayments
+        $lastRepaymentDate = $loan->repayments()
+            ->orderBy('date', 'desc')
+            ->first()?->date ?? $loan->start_date;
+        
+        $lastRepaymentDate = Carbon::parse($lastRepaymentDate);
 
-        //Recalculate interest
-        $amount = $loan->amount;
-        $interestRate = $loan->interest_rate;
-        $startDate = \Carbon\Carbon::parse($loan->start_date);
-        $currentDate = \Carbon\Carbon::now();
-        $elapsedMonths = ($currentDate->format('Y') - $startDate->format('Y')) * 12 + ($currentDate->format('m') - $startDate->format('m'));
-        if ($elapsedMonths < 0) {
-            $elapsedMonths = 0;
+        // Validate repayment date
+        if ($repaymentDate->lt($lastRepaymentDate)) {
+            return redirect()->back()
+                ->with('error', 'Repayment date cannot be earlier than the last repayment or loan start date.');
         }
-        $totalInterest = ($loan->remaining_balance * $interestRate / 100) * $elapsedMonths;
-        $totalAmount = $amount + $totalInterest;
 
-        $loan->total_amount = $totalAmount;
+        // Calculate interest for the period
+        $monthsElapsed = $lastRepaymentDate->diffInMonths($repaymentDate);
+        $monthlyInterestRate = $loan->interest_rate / 100;
+        $interest = $loan->amount * $monthlyInterestRate * $monthsElapsed;
 
-        // Update fund balance (add repayment amount)
+        // Calculate principal reduction
+        $principalReduction = $repaymentAmount - $interest;
+        if ($principalReduction < 0) {
+            $principalReduction = 0;
+            $interest = $repaymentAmount;
+        }
+
+        // Check if this repayment will fully pay off the loan
+        $newRemainingBalance = $currentBalance['total_amount'] - $repaymentAmount;
+        if ($newRemainingBalance <= 0) {
+            // If overpaid, adjust the interest and principal reduction
+            if ($repaymentAmount > $currentBalance['total_amount']) {
+                $repaymentAmount = $currentBalance['total_amount'];
+                $interest = $currentBalance['interest_accumulated'];
+                $principalReduction = $currentBalance['principal'];
+            }
+            
+            // Set all balances to 0 when loan is fully paid
+            $loan->remaining_balance = 0;
+            $loan->amount = 0;
+            $loan->total_amount = 0;
+        } else {
+            // Update loan balances for partial payment
+            $loan->remaining_balance = $newRemainingBalance;
+            $loan->amount -= $principalReduction;
+            $loan->total_amount = $newRemainingBalance;
+        }
+
+        // Update fund balance
         $fund = Fund::find($loan->fund_id);
         $fund->balance += $repaymentAmount;
         $fund->save();
 
-        // Create a repayment record
-        $repayment = new \App\Models\Repayment();
-        $repayment->loan_id = $loan->id;
-        $repayment->amount = $repaymentAmount;
-        $repayment->date = now();
-        $repayment->save();
-
-        // Mark loan as repaid if remaining balance is zero
-        if ($loan->remaining_balance <= 0) {
-            $loan->remaining_balance = 0;
-        }
+        // Create repayment record
+        Repayment::create([
+            'loan_id' => $loan->id,
+            'amount' => $repaymentAmount,
+            'interest' => $interest,
+            'principal_reduction' => $principalReduction,
+            'date' => $repaymentDate
+        ]);
 
         $loan->save();
-        return redirect()->route('loans.index')->with('success', 'Loan repayment recorded successfully.');
+        return redirect()->route('loans.index')
+            ->with('success', 'Loan repayment recorded successfully.');
+    }
+
+    // Show loan details
+    public function show(Loan $loan)
+    {
+        $balance = $this->calculateLoanBalance($loan);
+        return view('loans.show', compact('loan', 'balance'));
     }
 
     // Delete a loan
@@ -134,6 +245,32 @@ class LoanController extends Controller
         $fund->save();
 
         $loan->delete();
-        return redirect()->route('loans.index')->with('success', 'Loan deleted successfully.');
+        return redirect()->route('loans.index')
+            ->with('success', 'Loan deleted successfully.');
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

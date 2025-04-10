@@ -51,7 +51,7 @@
                 <select id="host" name="host" class="border p-2 w-full">
                     <option value="">None</option>
                     @foreach ($members as $member)
-                        @if ($loop->iteration == 10)
+                        @if ($loop->iteration == 22)
                             <option value="{{ $member->name }}" selected>{{ $member->name }}</option>
                         @else
                             <option value="{{ $member->name }}">{{ $member->name }}</option>
@@ -68,8 +68,8 @@
                     id="date" 
                     name="date" 
                     class="border p-2 w-full" 
-                    {{-- value="{{ now()->format('Y-m-d') }}" --}}
-                    value="2025-02-22" 
+                    value="{{ now()->format('Y-m-d') }}"
+                    {{-- value="2025-02-22"  --}}
                     required
                 >
             </div>
@@ -82,11 +82,12 @@
         </div> --}}
 
         <!-- Funds Grid -->
-        <h2 class="text-xl font-bold mb-4">Select Funds to Contribute To</h2>
+        {{-- <h2 class="text-xl font-bold mb-4">Select Funds to Contribute To</h2> --}}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             @foreach ($funds as $fund)
             <div class="bg-gray-100 p-4 rounded-lg">
-                <h3 class="font-bold mb-2">{{ $fund->name }} ({{ ucfirst($fund->type) }})</h3>
+                <h3 class="font-bold mb-2">{{ $fund->name }}</h3>
+                {{-- <h3 class="font-bold mb-2">{{ $fund->name }} ({{ ucfirst($fund->type) }})</h3> --}}
                 <div class="flex items-center space-x-2">
                     <input 
                         type="number" 

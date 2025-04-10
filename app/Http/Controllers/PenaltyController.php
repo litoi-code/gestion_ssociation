@@ -35,7 +35,7 @@ class PenaltyController extends Controller
 
         Penalty::create($validated);
 
-        return redirect()->route('penalties.index')->with('success', 'Penalty assigned successfully.');
+        return redirect()->route('penalties.create')->with('success', 'Penalty assigned successfully.');
     }
 
     public function edit(Penalty $penalty)

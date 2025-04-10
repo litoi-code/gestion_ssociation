@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
+
 <div class="bg-white shadow-md rounded-lg p-6">
     <div class="flex justify-between items-center mb-4">
 
@@ -11,10 +12,10 @@
         <thead>
             <tr class="bg-gray-200">
                 <th class="p-2">Membre</th>
-                <th class="p-2">Amount</th>
-                <th class="p-2">Reason</th>
+                <th class="p-2">Montant</th>
+                <th class="p-2">Raison</th>
                 <th class="p-2">Date</th>
-                <th class="p-2">Paid</th>
+                <th class="p-2">Payée</th>
                 <th class="p-2">Actions</th>
             </tr>
         </thead>

@@ -20,7 +20,7 @@
             <tr class="border-b">
                 <td class="p-2">{{ $member->id }}</td>
                 <td class="p-2">{{ $member->name }}</td>
-                <td class="p-2">{{ number_format($member->balance, 2) }} Fcfa</td>
+                <td class="p-2">-{{ number_format($member->balance, 2) }} Fcfa</td>
                 <td class="p-2 space-x-2">
                     <!-- View Details Link -->
                     <a href="{{ route('members.show', $member) }}" class="text-blue-500 hover:underline">View Details</a>

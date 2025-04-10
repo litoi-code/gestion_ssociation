@@ -6,6 +6,7 @@ use App\Models\Member;
 use App\Models\Contribution;
 use App\Models\Loan;
 use App\Models\Penalty;
+use App\Models\InterestDistribution;
 use Illuminate\Http\Request;
 
 class MemberController extends Controller
@@ -42,8 +43,12 @@ class MemberController extends Controller
         $contributions = Contribution::where('member_id', $member->id)->with('fund')->get();
         $loans = Loan::where('member_id', $member->id)->with('fund')->get();
         $penalties = Penalty::where('member_id', $member->id)->get();
+        $interestDistributions = InterestDistribution::where('member_id', $member->id)
+            ->with('fund')
+            ->orderBy('date', 'desc')
+            ->get();
 
-        return view('members.show', compact('member', 'contributions', 'loans', 'penalties'));
+        return view('members.show', compact('member', 'contributions', 'loans', 'penalties', 'interestDistributions'));
     }
 
     // Show form to edit a member
@@ -71,3 +76,4 @@ class MemberController extends Controller
         return redirect()->route('members.index')->with('success', 'Member deleted successfully.');
     }
 }
+

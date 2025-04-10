@@ -9,7 +9,17 @@ class Repayment extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['loan_id', 'amount', 'date'];
+    protected $fillable = [
+        'loan_id',
+        'amount',
+        'date',
+        'interest',
+        'principal_reduction'
+    ];
+
+    protected $casts = [
+        'date' => 'datetime'
+    ];
 
     // Relationships
     public function loan()
@@ -17,3 +27,5 @@ class Repayment extends Model
         return $this->belongsTo(Loan::class);
     }
 }
+
+
