@@ -8,20 +8,20 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <!-- Total Members -->
         <div class="bg-blue-500 text-white p-6 rounded-lg text-center">
-            <h2 class="text-xl font-bold">Total Members</h2>
+            <h2 class="text-xl font-bold">Total Membres</h2>
             <p class="text-4xl font-bold">{{ $totalMembers }}</p>
         </div>
 
         <!-- Total Funds -->
         <div class="bg-green-500 text-white p-6 rounded-lg text-center">
-            <h2 class="text-xl font-bold">Total Funds</h2>
+            <h2 class="text-xl font-bold">Total Caisses</h2>
             <p class="text-4xl font-bold">{{ $totalFunds }}</p>
         </div>
 
         <!-- Total Contributions -->
         <div class="bg-yellow-500 text-white p-6 rounded-lg text-center">
             <h2 class="text-xl font-bold">Total Contributions</h2>
-            <p class="text-4xl font-bold">${{ number_format($totalContributions, 2) }}</p>
+            <p class="text-4xl font-bold">{{ number_format($totalContributions, 2) }} F</p>
         </div>
     </div>
 

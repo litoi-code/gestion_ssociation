@@ -16,18 +16,25 @@ class LoanController extends Controller
     public function index()
     {
         $loans = Loan::with(['member', 'fund', 'repayments'])->orderBy('start_date', 'asc')->get();
-        
+
+        $totalLoanAmount = 0;
+        $totalInterest = 0;
+        $totalToRepay = 0;
+
         foreach ($loans as $loan) {
             $balance = $this->calculateLoanBalance($loan);
-            
+
             // Set values using the accessor methods
             $loan->current_total = $balance['total_amount'];
             $loan->current_interest = $balance['interest_accumulated'];
-            
-           
+
+            // Calculate totals
+            $totalLoanAmount += $loan->amount;
+            $totalInterest += $balance['interest_accumulated'];
+            $totalToRepay += $balance['total_amount'];
         }
-        
-        return view('loans.index', compact('loans'));
+
+        return view('loans.index', compact('loans', 'totalLoanAmount', 'totalInterest', 'totalToRepay'));
     }
 
     // Show form to create a new loan
@@ -49,17 +56,15 @@ class LoanController extends Controller
             'start_date' => 'required|date',
         ]);
 
-        // Ensure fund balance is sufficient
-        $fund = Fund::find($validated['fund_id']);
-        if ($validated['amount'] > $fund->balance) {
-            return redirect()->route('loans.create')
-                ->with('error', 'Requested loan amount exceeds fund balance.');
-        }
-
         $amount = $validated['amount'];
         $startDate = Carbon::parse($validated['start_date']);
-        $currentDate = Carbon::now();
-        
+        $fund = Fund::find($validated['fund_id']);
+
+        // Allow loans even with insufficient balance
+        // Update fund balance when creating a loan
+        $fund->balance -= $amount;
+        $fund->save();
+
         // Calculate initial loan state
         $initialBalance = $this->calculateLoanBalance(new Loan([
             'amount' => $amount,
@@ -79,10 +84,6 @@ class LoanController extends Controller
             'total_amount' => $initialBalance['total_amount'],
         ]);
 
-        // Update fund balance
-        $fund->balance -= $amount;
-        $fund->save();
-
         return redirect()->route('loans.index')
             ->with('success', 'Loan issued successfully.');
     }
@@ -93,7 +94,7 @@ class LoanController extends Controller
         // Ensure we're working with Carbon instances
         $asOfDate = $asOfDate ? Carbon::parse($asOfDate) : Carbon::now();
         $startDate = $loan->start_date instanceof Carbon ? $loan->start_date : Carbon::parse($loan->start_date);
-        
+
         // If loan start date is in the future
         if ($startDate->gt($asOfDate)) {
             return [
@@ -110,17 +111,17 @@ class LoanController extends Controller
             ->orderBy('date', 'desc')
             ->first();
 
-        $calculationStartDate = $lastRepayment ? 
-            Carbon::parse($lastRepayment->date) : 
+        $calculationStartDate = $lastRepayment ?
+            Carbon::parse($lastRepayment->date) :
             $startDate;
 
         // Calculate exact months including partial months
         $elapsedMonths = round($calculationStartDate->floatDiffInMonths($asOfDate));
-        
+
         // Calculate interest based on remaining balance with proper rounding
         $monthlyInterestRate = round((float)$loan->interest_rate / 100, 4); // Round to 4 decimal places
         $remainingBalance = round($loan->remaining_balance, 2);
-        
+
         // Calculate total interest
         $totalInterest = round($remainingBalance * $monthlyInterestRate * $elapsedMonths, 2);
         $totalAmount = round($remainingBalance + $totalInterest, 2);
@@ -168,7 +169,7 @@ class LoanController extends Controller
         $lastRepaymentDate = $loan->repayments()
             ->orderBy('date', 'desc')
             ->first()?->date ?? $loan->start_date;
-        
+
         $lastRepaymentDate = Carbon::parse($lastRepaymentDate);
 
         // Validate repayment date
@@ -198,7 +199,7 @@ class LoanController extends Controller
                 $interest = $currentBalance['interest_accumulated'];
                 $principalReduction = $currentBalance['principal'];
             }
-            
+
             // Set all balances to 0 when loan is fully paid
             $loan->remaining_balance = 0;
             $loan->amount = 0;
@@ -210,10 +211,15 @@ class LoanController extends Controller
             $loan->total_amount = $newRemainingBalance;
         }
 
-        // Update fund balance
+        // Get the fund
         $fund = Fund::find($loan->fund_id);
+
+        // Update fund balance when repaying a loan
         $fund->balance += $repaymentAmount;
         $fund->save();
+
+        // Add interest to the fund
+        $fund->addInterest($interest);
 
         // Create repayment record
         Repayment::create([
@@ -239,7 +245,7 @@ class LoanController extends Controller
     // Delete a loan
     public function destroy(Loan $loan)
     {
-        // Restore fund balance
+        // Restore fund balance when deleting a loan
         $fund = Fund::find($loan->fund_id);
         $fund->balance += $loan->amount;
         $fund->save();
@@ -248,7 +254,81 @@ class LoanController extends Controller
         return redirect()->route('loans.index')
             ->with('success', 'Loan deleted successfully.');
     }
+
+    /**
+     * Search for loans with filters
+     */
+    public function search(Request $request)
+    {
+        // Get search parameters
+        $memberName = $request->input('query');
+        $date = $request->input('date');
+        $status = $request->input('status');
+
+        // Start with all loans and eager load relationships
+        $query = Loan::with(['member', 'fund', 'repayments']);
+
+        // If member name is provided, join with members table and filter
+        if ($memberName) {
+            $query->join('members', 'loans.member_id', '=', 'members.id')
+                  ->where('members.name', 'LIKE', '%' . $memberName . '%')
+                  ->select('loans.*'); // Make sure we only get loans columns
+        }
+
+        // Filter by date if provided
+        if ($date) {
+            $query->whereDate('loans.start_date', $date);
+        }
+
+        // Filter by status if provided
+        if ($status !== null && $status !== '') {
+            if ($status === 'paid') {
+                $query->where('loans.remaining_balance', '<=', 0);
+            } else if ($status === 'active') {
+                $query->where('loans.remaining_balance', '>', 0);
+            }
+        }
+
+        // Get the loans
+        $loans = $query->orderBy('start_date', 'asc')->get();
+
+        // Calculate current balance and interest for each loan
+        foreach ($loans as $loan) {
+            $balance = $this->calculateLoanBalance($loan);
+            $loan->current_total = $balance['total_amount'];
+            $loan->current_interest = $balance['interest_accumulated'];
+        }
+
+        // Format the results
+        $formattedLoans = $loans->map(function ($loan) {
+            return [
+                'id' => $loan->id,
+                'member_name' => $loan->member->name,
+                'fund_name' => $loan->fund->name,
+                'amount' => $loan->amount,
+                'interest_rate' => $loan->interest_rate,
+                'remaining_balance' => $loan->remaining_balance,
+                'current_total' => $loan->current_total,
+                'current_interest' => $loan->current_interest,
+                'start_date' => $loan->start_date->format('Y-m-d'),
+                'status' => $loan->remaining_balance <= 0 ? 'Paid' : 'Active',
+            ];
+        });
+
+        // Calculate totals
+        $totalLoanAmount = $formattedLoans->sum('amount');
+        $totalInterest = $formattedLoans->sum('current_interest');
+        $totalToRepay = $formattedLoans->sum('current_total');
+
+        return response()->json([
+            'loans' => $formattedLoans,
+            'totalLoanAmount' => $totalLoanAmount,
+            'totalInterest' => $totalInterest,
+            'totalToRepay' => $totalToRepay
+        ]);
+    }
 }
+
 
 
 

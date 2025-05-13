@@ -18,12 +18,12 @@
         @csrf
         
         <div class="mb-4">
-            <label for="fund_id" class="block text-sm font-medium text-gray-700 mb-2">Fund</label>
+            <label for="fund_id" class="block text-sm font-medium text-gray-700 mb-2">Investment Fund</label>
             <select id="fund_id" name="fund_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
-                <option value="">Select a fund</option>
-                @foreach($funds as $fund)
+                <option value="">Select investment fund</option>
+                @foreach($funds->where('type', 'investment') as $fund)
                     <option value="{{ $fund->id }}">
-                        {{ $fund->name }} (Balance: {{ number_format($fund->balance, 2) }} Fcfa)
+                        {{ $fund->name }} (Balance: {{ number_format($fund->balance, 2) }} XAF)
                     </option>
                 @endforeach
             </select>
@@ -40,7 +40,7 @@
                        placeholder="0.00"
                        required>
                 <div class="absolute inset-y-0 right-0 flex items-center pr-3">
-                    <span class="text-gray-500 sm:text-sm">Fcfa</span>
+                    <span class="text-gray-500 sm:text-sm">XAF</span>
                 </div>
             </div>
         </div>
@@ -68,4 +68,5 @@
     </form>
 </div>
 @endsection
+
 

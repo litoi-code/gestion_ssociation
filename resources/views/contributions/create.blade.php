@@ -51,7 +51,7 @@
                 <select id="host" name="host" class="border p-2 w-full">
                     <option value="">None</option>
                     @foreach ($members as $member)
-                        @if ($loop->iteration == 22)
+                        @if ($loop->iteration == 1)
                             <option value="{{ $member->name }}" selected>{{ $member->name }}</option>
                         @else
                             <option value="{{ $member->name }}">{{ $member->name }}</option>

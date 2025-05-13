@@ -26,13 +26,13 @@
             </select>
 
             <!-- Date Filter -->
-            <input 
-                type="date" 
-                id="dateFilter" 
+            <input
+                type="date"
+                id="dateFilter"
                 class="border p-2 w-full"
                 value="{{ now()->format('Y-m-d') }}"
 
-                
+
             >
         </div>
          <!-- Total Funds Display -->
@@ -50,6 +50,7 @@
         <h2 class="text-xl font-bold">Caisses</h2>
         <h2 class="text-xl font-bold">Total: <span id="totalFunds">0.00</span> Fcfa</h2>
         <h2 class="text-xl font-bold">Hôte(sse): <span id="totalFirstFourFunds">0.00</span> </h2>
+        <h2 class="text-xl font-bold">Membres: <span id="totalMembers">0</span></h2>
     </div>
     <div id="fundBalancesGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         @foreach ($funds as $fund)
@@ -59,7 +60,7 @@
         </div>
         @endforeach
     </div>
-    
+
 
     <!-- Contributions Table -->
     <table id="contributionsTable" class="w-full border-collapse">
@@ -158,7 +159,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     fundBalancesGrid.insertAdjacentHTML('beforeend', card);
                 });
 
-                // Calculate total of first four funds
+            // Calculate total of first four funds
                 let totalFirstFourFunds = 0;
                 for (let i = 0; i < Math.min(2, data.fundBalances.length); i++) {
                     totalFirstFourFunds += parseFloat(data.fundBalances[i].balance);
@@ -167,6 +168,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // Update the total funds
                 document.getElementById('totalFunds').textContent = parseFloat(data.totalFunds).toFixed(2);
+
+                // Update the total members count
+                document.getElementById('totalMembers').textContent = data.totalMembers;
             })
             .catch(error => console.error('Error fetching search results:', error));
     }

@@ -208,10 +208,15 @@ class ContributionController extends Controller
         // Calculate total funds from search results
         $totalFunds = $contributions->sum('amount');
 
+        // Count unique members who contributed on the selected date
+        $totalMembers = $contributions->pluck('member_name')->unique()->count();
+
         return response()->json([
             'contributions' => $contributions,
             'fundBalances' => $fundBalances,
             'totalFunds' => $totalFunds,
+            'totalMembers' => $totalMembers,
         ]);
     }
 }
+

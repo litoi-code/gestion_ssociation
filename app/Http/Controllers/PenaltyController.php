@@ -9,11 +9,21 @@ use Illuminate\Http\Request;
 class PenaltyController extends Controller
 {
     // Display all penalties
-    public function index()
+    public function index(Request $request)
     {
-        $penalties = Penalty::with('member')->get();
+        $search = $request->input('search');
+
+        $penalties = Penalty::with('member')
+            ->when($search, function ($query) use ($search) {
+                $query->whereHas('member', function ($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%");
+                });
+            })
+            ->get();
+
         $totalPenalties = $penalties->sum('amount');
-        return view('penalties.index', compact('penalties', 'totalPenalties'));
+
+        return view('penalties.index', compact('penalties', 'totalPenalties', 'search'));
     }
 
     // Show form to create a new penalty
@@ -79,4 +89,59 @@ class PenaltyController extends Controller
         $penalty->delete();
         return redirect()->route('penalties.index')->with('success', 'Penalty deleted successfully.');
     }
+
+    // Add this new method for real-time search
+    public function search(Request $request)
+    {
+        // Get search parameters
+        $memberName = $request->input('query');
+        $date = $request->input('date');
+        $status = $request->input('status');
+
+        // Start with all penalties and eager load the member relationship
+        $query = Penalty::with('member');
+
+        // If member name is provided, join with members table and filter
+        if ($memberName) {
+            $query->join('members', 'penalties.member_id', '=', 'members.id')
+                  ->where('members.name', 'LIKE', '%' . $memberName . '%')
+                  ->select('penalties.*'); // Make sure we only get penalties columns
+        }
+
+        // Filter by date if provided
+        if ($date) {
+            $query->where('penalties.date', $date);
+        }
+
+        // Filter by payment status if provided
+        if ($status !== null && $status !== '') {
+            $query->where('penalties.is_paid', $status);
+        }
+
+        // Execute the query
+        $penalties = $query->get();
+
+        // Format the results
+        $formattedPenalties = [];
+        foreach ($penalties as $penalty) {
+            $formattedPenalties[] = [
+                'id' => $penalty->id,
+                'member_name' => $penalty->member->name,
+                'amount' => $penalty->amount,
+                'reason' => $penalty->reason,
+                'date' => $penalty->date,
+                'is_paid' => $penalty->is_paid,
+            ];
+        }
+
+        // Calculate total amount
+        $totalAmount = $penalties->sum('amount');
+
+        return response()->json([
+            'penalties' => $formattedPenalties,
+            'totalPenalties' => $totalAmount
+        ]);
+    }
 }
+
+

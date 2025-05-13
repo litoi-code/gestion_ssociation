@@ -39,16 +39,22 @@ class MemberController extends Controller
     // Show a specific member
     public function show(Member $member)
     {
-        // Fetch related data
-        $contributions = Contribution::where('member_id', $member->id)->with('fund')->get();
-        $loans = Loan::where('member_id', $member->id)->with('fund')->get();
-        $penalties = Penalty::where('member_id', $member->id)->get();
-        $interestDistributions = InterestDistribution::where('member_id', $member->id)
-            ->with('fund')
-            ->orderBy('date', 'desc')
-            ->get();
+        $contributions = $member->contributions()->with('fund')->latest()->get();
+        $loans = $member->loans()->with('fund')->latest()->get();
+        $penalties = $member->penalties()->latest()->get();
+        $interestDistributions = $member->interestDistributions()->latest()->get();
+        
+        // Get the investment fund
+        $investmentFund = \App\Models\Fund::where('type', 'investment')->first();
 
-        return view('members.show', compact('member', 'contributions', 'loans', 'penalties', 'interestDistributions'));
+        return view('members.show', compact(
+            'member',
+            'contributions',
+            'loans',
+            'penalties',
+            'interestDistributions',
+            'investmentFund'
+        ));
     }
 
     // Show form to edit a member
@@ -76,4 +82,5 @@ class MemberController extends Controller
         return redirect()->route('members.index')->with('success', 'Member deleted successfully.');
     }
 }
+
 
