@@ -1,6 +1,9 @@
 @extends('layouts.app')
 
 @section('content')
+
+<a href="{{ route('loans.index') }}">Back to Loans</a>
+<br><br>
 <div class="container mx-auto px-4 py-6">
     <div class="max-w-4xl mx-auto">
         <div class="bg-white shadow-md rounded-lg overflow-hidden mb-6">
@@ -13,6 +16,7 @@
                         <div class="space-y-3">
                             <p><span class="font-medium">Membre:</span> {{ $loan->member->name }}</p>
                             <p><span class="font-medium">Caisse:</span> {{ $loan->fund->name }}</p>
+                            <p><span class="font-medium">Principal:</span> {{ number_format($loan->initial_amount) }} XAF</p>
                             <p><span class="font-medium">Start Date:</span> {{ $loan->start_date->format('Y-m-d') }}</p>
                             <p><span class="font-medium">Taux d'intérêt:</span> {{ $loan->interest_rate }}% par mois</p>
                         </div>
@@ -21,7 +25,7 @@
                     <div>
                         <h2 class="text-lg font-semibold mb-4">Statut</h2>
                         <div class="space-y-3">
-                            <p><span class="font-medium">Principal déduit:</span> {{ number_format($loan->amount) }} XAF</p>
+                            <p><span class="font-medium">Principal déduit:</span> {{ number_format($principalDeducted) }} XAF</p>
                             <p><span class="font-medium">Intérêts accumulés:</span> {{ number_format($balance['interest_accumulated']) }} XAF</p>
                             <p><span class="font-medium">Total à Payer:</span> {{ number_format($balance['total_amount']) }} XAF</p>
                             <p><span class="font-medium">Solde:</span> {{ number_format($loan->remaining_balance) }} XAF</p>

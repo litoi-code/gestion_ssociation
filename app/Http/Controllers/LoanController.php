@@ -9,6 +9,7 @@ use App\Models\Repayment;  // Add this line
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class LoanController extends Controller
 {
@@ -55,10 +56,10 @@ class LoanController extends Controller
             'interest_rate' => 'required|numeric|min:0',
             'start_date' => 'required|date',
         ]);
-
-        $amount = $validated['amount'];
-        $startDate = Carbon::parse($validated['start_date']);
-        $fund = Fund::find($validated['fund_id']);
+       $amount = $validated['amount'];
+       $startDate = Carbon::parse($validated['start_date']);
+       $fund = Fund::find($validated['fund_id']);
+       
 
         // Allow loans even with insufficient balance
         // Update fund balance when creating a loan
@@ -78,13 +79,13 @@ class LoanController extends Controller
             'member_id' => $validated['member_id'],
             'fund_id' => $validated['fund_id'],
             'amount' => $amount,
+            'initial_amount' => $amount,
             'interest_rate' => $validated['interest_rate'],
             'start_date' => $startDate,
             'remaining_balance' => $amount,
             'total_amount' => $initialBalance['total_amount'],
         ]);
-
-        return redirect()->route('loans.index')
+       return redirect()->route('loans.index')
             ->with('success', 'Loan issued successfully.');
     }
 
@@ -126,23 +127,29 @@ class LoanController extends Controller
         $totalInterest = round($remainingBalance * $monthlyInterestRate * $elapsedMonths, 2);
         $totalAmount = round($remainingBalance + $totalInterest, 2);
 
-        \Log::debug('Loan balance calculation', [
-            'loan_id' => $loan->id,
-            'remaining_balance' => $remainingBalance,
-            'monthly_rate' => $monthlyInterestRate,
-            'elapsed_months' => $elapsedMonths,
-            'total_interest' => $totalInterest,
-            'total_amount' => $totalAmount,
-            'start_date' => $startDate->toDateString(),
-            'as_of_date' => $asOfDate->toDateString()
-        ]);
-
         return [
             'principal' => $remainingBalance,
             'elapsed_months' => $elapsedMonths,
             'interest_accumulated' => $totalInterest,
             'total_amount' => $totalAmount
         ];
+    }
+
+    private function calculatePrincipalDeducted(Loan $loan, $asOfDate = null)
+    {
+        $asOfDate = $asOfDate ? Carbon::parse($asOfDate) : Carbon::now();
+
+        $lastRepayment = $loan->repayments()
+            ->where('date', '<=', $asOfDate->toDateString())
+            ->orderBy('date', 'desc')
+            ->first();
+
+        $totalPrincipalReduction = 0;
+        foreach ($loan->repayments as $repayment) {
+            $totalPrincipalReduction += $repayment->principal_reduction;
+        }
+
+        return $totalPrincipalReduction;
     }
 
     // Repay a loan
@@ -206,9 +213,8 @@ class LoanController extends Controller
             $loan->total_amount = 0;
         } else {
             // Update loan balances for partial payment
-            $loan->remaining_balance = $newRemainingBalance;
-            $loan->amount -= $principalReduction;
-            $loan->total_amount = $newRemainingBalance;
+            $loan->remaining_balance -= $principalReduction;
+            $loan->total_amount = $loan->remaining_balance + $currentBalance['interest_accumulated'];
         }
 
         // Get the fund
@@ -239,7 +245,8 @@ class LoanController extends Controller
     public function show(Loan $loan)
     {
         $balance = $this->calculateLoanBalance($loan);
-        return view('loans.show', compact('loan', 'balance'));
+        $principalDeducted = $this->calculatePrincipalDeducted($loan);
+        return view('loans.show', compact('loan', 'balance', 'principalDeducted'));
     }
 
     // Delete a loan
@@ -328,29 +335,3 @@ class LoanController extends Controller
         ]);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

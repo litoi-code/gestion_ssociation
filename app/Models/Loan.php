@@ -14,7 +14,8 @@ class Loan extends Model
         'interest_rate',
         'remaining_balance',
         'total_amount',
-        'start_date'
+        'start_date',
+        'initial_amount'
     ];
 
     protected $casts = [
