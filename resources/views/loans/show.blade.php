@@ -5,6 +5,11 @@
 <a href="{{ route('loans.index') }}">Back to Loans</a>
 <br><br>
 <div class="container mx-auto px-4 py-6">
+    @if (session('success'))
+        <div class="bg-green-200 border-green-500 text-green-700 p-4 rounded mb-4">
+            {{ session('success') }}
+        </div>
+    @endif
     <div class="max-w-4xl mx-auto">
         <div class="bg-white shadow-md rounded-lg overflow-hidden mb-6">
             <div class="p-6">
@@ -82,6 +87,7 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Montant</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Intérêts</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Principal</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
@@ -91,6 +97,13 @@
                                 <td class="px-6 py-4 whitespace-nowrap">{{ number_format($repayment->amount) }} XAF</td>
                                 <td class="px-6 py-4 whitespace-nowrap">{{ number_format($repayment->interest) }} XAF</td>
                                 <td class="px-6 py-4 whitespace-nowrap">{{ number_format($repayment->principal_reduction) }} XAF</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <form action="{{ route('loans.repayments.destroy', [$loan, $repayment]) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this repayment?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="text-red-500 hover:text-red-700">Delete</button>
+                                    </form>
+                                </td>
                             </tr>
                             @endforeach
                         </tbody>

@@ -139,11 +139,6 @@ class LoanController extends Controller
     {
         $asOfDate = $asOfDate ? Carbon::parse($asOfDate) : Carbon::now();
 
-        $lastRepayment = $loan->repayments()
-            ->where('date', '<=', $asOfDate->toDateString())
-            ->orderBy('date', 'desc')
-            ->first();
-
         $totalPrincipalReduction = 0;
         foreach ($loan->repayments as $repayment) {
             $totalPrincipalReduction += $repayment->principal_reduction;
@@ -185,16 +180,22 @@ class LoanController extends Controller
                 ->with('error', 'Repayment date cannot be earlier than the last repayment or loan start date.');
         }
 
-        // Calculate interest for the period
+        // Calculate interest for the period, considering full months only
         $monthsElapsed = $lastRepaymentDate->diffInMonths($repaymentDate);
         $monthlyInterestRate = $loan->interest_rate / 100;
-        $interest = $loan->amount * $monthlyInterestRate * $monthsElapsed;
+        $interest = 0;
+        $tempDate = Carbon::parse($lastRepaymentDate);
+
+        for ($i = 0; $i < $monthsElapsed; $i++) {
+            $tempDate->addMonth();
+            $interest += $loan->remaining_balance * $monthlyInterestRate;
+        }
 
         // Calculate principal reduction
         $principalReduction = $repaymentAmount - $interest;
         if ($principalReduction < 0) {
-            $principalReduction = 0;
             $interest = $repaymentAmount;
+            $principalReduction = 0;
         }
 
         // Check if this repayment will fully pay off the loan
@@ -333,5 +334,25 @@ class LoanController extends Controller
             'totalInterest' => $totalInterest,
             'totalToRepay' => $totalToRepay
         ]);
+    }
+
+    public function destroyRepayment(Loan $loan, Repayment $repayment)
+    {
+        // Get the fund
+        $fund = Fund::find($loan->fund_id);
+
+        // Restore fund balance when deleting a repayment
+        $fund->balance -= $repayment->amount;
+        $fund->save();
+
+        // Update loan balances
+        $loan->remaining_balance += $repayment->principal_reduction;
+        $loan->total_amount += $repayment->amount;
+        $loan->save();
+
+        $repayment->delete();
+
+        return redirect()->route('loans.show', $loan)
+            ->with('success', 'Loan repayment deleted successfully.');
     }
 }

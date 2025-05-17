@@ -33,6 +33,7 @@ Route::get('/loans/search', [LoanController::class, 'search'])->name('loans.sear
 Route::resource('loans', LoanController::class);
 // Loan repayment route
 Route::post('/loans/{loan}/repay', [LoanController::class, 'repay'])->name('loans.repay');
+Route::delete('/loans/{loan}/repayments/{repayment}', [LoanController::class, 'destroyRepayment'])->name('loans.repayments.destroy');
 
 use App\Http\Controllers\TransferController;
 
